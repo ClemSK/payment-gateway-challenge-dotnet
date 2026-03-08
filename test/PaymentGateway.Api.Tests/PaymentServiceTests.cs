@@ -1,5 +1,7 @@
 using FluentAssertions;
 
+using FluentResults;
+
 using Microsoft.Extensions.Logging;
 
 using Moq;
