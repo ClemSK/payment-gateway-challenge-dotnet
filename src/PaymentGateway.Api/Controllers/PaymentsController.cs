@@ -33,10 +33,10 @@ public class PaymentsController(PaymentService paymentService) : Controller
             if (result.Errors.Any(e =>
                     e.Message.Contains("Service Unavailable") || e.Message.Contains("Error connecting")))
             {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, result.Errors);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, result.Errors.Select(e => e.Message));
             }
 
-            return BadRequest(result.Errors);
+            return BadRequest(result.Errors.Select(e => e.Message));
         }
 
         return Ok(result.Value);

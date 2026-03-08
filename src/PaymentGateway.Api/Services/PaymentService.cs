@@ -6,6 +6,7 @@ using PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Repositories.Payment;
+using PaymentGateway.Api.Validation;
 
 namespace PaymentGateway.Api.Services;
 
@@ -13,11 +14,18 @@ public class PaymentService(
     ILogger<PaymentService> logger,
     IPaymentRepository paymentRepository,
     IBankSimulator bankSimulator,
-    IGuidGenerator guidGenerator)
+    IGuidGenerator guidGenerator
+)
 {
     public async Task<Result<PostPaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request)
     {
-        // TODO: Rejected - Validation, if incomplete information, do not call the bank simulator
+        var validator = new PostPaymentRequestValidator();
+        var validationResult = await validator.ValidateAsync(request);
+
+        if (!validationResult.IsValid)
+        {
+            return Result.Fail<PostPaymentResponse>(validationResult.Errors.Select(e => e.ErrorMessage));
+        }
 
         var bankRequest = new BankSimulatorRequest
         {
