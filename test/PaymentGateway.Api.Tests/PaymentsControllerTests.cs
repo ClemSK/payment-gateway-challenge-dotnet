@@ -187,4 +187,32 @@ public class PaymentsControllerTests
         // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Returns400IfPaymentValidationFails()
+    {
+        // Arrange
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "123", // Too short
+            ExpiryMonth = 13, // Invalid month
+            ExpiryYear = 2020, // In the past
+            Currency = "JPY", // Not supported
+            Amount = -1, // Not positive
+            CVV = "12" // Too short
+        };
+
+        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
+        var client = webApplicationFactory.CreateClient();
+
+        // Act
+        var response = await client.PostAsJsonAsync("/api/Payments", request);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var errors = await response.Content.ReadFromJsonAsync<IEnumerable<string>>();
+        Assert.NotEmpty(errors);
+        Assert.All(errors, error => Assert.IsType<string>(error));
+    }
 }
