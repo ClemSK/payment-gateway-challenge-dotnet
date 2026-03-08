@@ -1,14 +1,18 @@
 using FluentResults;
 
+using PaymentGateway.Api.Enums;
+using PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
+using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Repositories.Payment;
 
 namespace PaymentGateway.Api.Services;
 
-public class PaymentService
+public class PaymentService(
+    ILogger<PaymentService> logger,
+    IPaymentRepository paymentRepository,
+    IBankSimulator bankSimulator)
 {
-    private readonly ILogger _logger;
-    private readonly IPaymentRepository _paymentRepository;
 
     public PaymentService(ILogger<PaymentService> logger, IPaymentRepository paymentRepository)
     {
@@ -18,7 +22,7 @@ public class PaymentService
 
     public Result<PostPaymentResponse> GetPayment(Guid paymentId)
     {
-        var payment = _paymentRepository.Get(paymentId);
+        var payment = paymentRepository.Get(paymentId);
 
         if (payment == null)
         {
