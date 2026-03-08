@@ -9,6 +9,7 @@ using Moq;
 using PaymentGateway.Api.Common.GuidGenerator;
 using PaymentGateway.Api.Enums;
 using PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
+using PaymentGateway.Api.Models.Domain;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Repositories.Payment;
@@ -39,7 +40,7 @@ public class PaymentServiceTests
     {
         // Arrange
         var paymentId = Guid.NewGuid();
-        var expected = new PostPaymentResponse
+        var expected = new Payment
         {
             Id = paymentId,
             Amount = 10050,
@@ -72,7 +73,7 @@ public class PaymentServiceTests
     {
         // Arrange
         var paymentId = Guid.NewGuid();
-        _paymentRepositoryMock.Setup(x => x.Get(paymentId)).Returns((PostPaymentResponse?)null);
+        _paymentRepositoryMock.Setup(x => x.Get(paymentId)).Returns((Payment?)null);
 
         // Act
         var actual = _sut.GetPayment(paymentId);
@@ -128,7 +129,7 @@ public class PaymentServiceTests
         actual.IsSuccess.Should().BeTrue();
         actual.Value.Should().BeEquivalentTo(expected);
 
-        _paymentRepositoryMock.Verify(x => x.Add(It.IsAny<PostPaymentResponse>()), Times.Once);
+        _paymentRepositoryMock.Verify(x => x.Add(It.IsAny<Payment>()), Times.Once);
     }
 
     [Fact]
@@ -203,9 +204,10 @@ public class PaymentServiceTests
     }
 
     [Fact]
-    public async Task ProcessPayment_WhenRequestIsInvalid_ReturnsValidationErrors()
+    public async Task ProcessPayment_WhenRequestIsInvalid_ReturnsRejectedResponse()
     {
         // Arrange
+        var paymentId = Guid.NewGuid();
         var request = new PostPaymentRequest
         {
             CardNumber = "1234a", // Invalid card number (short and non-numeric)
@@ -216,21 +218,31 @@ public class PaymentServiceTests
             CVV = "1" // Invalid CVV
         };
 
+        var expected = new PostPaymentResponse()
+        {
+            Id = paymentId,
+            CardNumberLastFour = 0,
+            ExpiryMonth = 13,
+            ExpiryYear = 2020,
+            Currency = "AUD",
+            Amount = -1,
+            Status = PaymentStatus.Rejected
+        };
+
+        _guidGeneratorMock
+            .Setup(x => x.NewGuid())
+            .Returns(paymentId);
+
         // Act
         var actual = await _sut.ProcessPaymentAsync(request);
 
         // Assert
-        actual.IsFailed.Should().BeTrue();
-        actual.Errors.Select(e => e.Message).Should().Contain(new[]
-        {
-            "Card number must be between 14 and 19 characters long",
-            "Card number must only contain numeric characters",
-            "Expiry month must be between 1 and 12",
-            "Expiry year must be in the future",
-            "Currency must be one of the following: USD, EUR, GBP",
-            "Amount must be greater than 0",
-            "CVV must be 3 or 4 characters long"
-        });
+        actual.IsSuccess.Should().BeFalse();
+        actual.Value.Status.Should().Be(PaymentStatus.Rejected);
+        
+        var error = actual.Errors.OfType<PaymentError>().Single();
+        error.ErrorType.Should().Be(PaymentErrorType.ServiceUnavailable);
+        error.Message.Should().Be("Payment rejected due to validation failure");
 
         _bankSimulatorMock.Verify(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()), Times.Never);
     }

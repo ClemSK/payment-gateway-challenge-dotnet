@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+using PaymentGateway.Api.Common.Extensions;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Services;
@@ -14,31 +15,13 @@ public class PaymentsController(PaymentService paymentService) : Controller
     public async Task<ActionResult<PostPaymentResponse>> GetPaymentAsync(Guid id)
     {
         var result = paymentService.GetPayment(id);
-
-        if (result.IsFailed)
-        {
-            return NotFound();
-        }
-
-        return Ok(result.Value);
+        return result.ToActionResult(this);
     }
-
+    
     [HttpPost]
     public async Task<ActionResult<PostPaymentResponse>> PostPaymentAsync([FromBody] PostPaymentRequest request)
     {
         var result = await paymentService.ProcessPaymentAsync(request);
-
-        if (result.IsFailed)
-        {
-            if (result.Errors.Any(e =>
-                    e.Message.Contains("Service Unavailable") || e.Message.Contains("Error connecting")))
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, result.Errors.Select(e => e.Message));
-            }
-
-            return BadRequest(result.Errors.Select(e => e.Message));
-        }
-
-        return Ok(result.Value);
+        return result.ToActionResult(this);
     }
 }

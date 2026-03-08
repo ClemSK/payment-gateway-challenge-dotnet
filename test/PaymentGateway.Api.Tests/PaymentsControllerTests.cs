@@ -11,6 +11,7 @@ using Moq;
 using PaymentGateway.Api.Controllers;
 using PaymentGateway.Api.Enums;
 using PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
+using PaymentGateway.Api.Models.Domain;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Repositories.Payment;
@@ -46,12 +47,14 @@ public class PaymentsControllerTests
                 Authorized = true, AuthorizationCode = authorizationCode.ToString()
             }));
 
+        var paymentRepository = new PaymentsRepository();
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
 
         var client = webApplicationFactory.WithWebHostBuilder(builder =>
                 builder.ConfigureServices(services =>
                 {
                     services.AddSingleton(bankSimulatorMock.Object);
+                    services.AddSingleton<IPaymentRepository>(paymentRepository);
                 }))
             .CreateClient();
 
@@ -64,6 +67,11 @@ public class PaymentsControllerTests
         Assert.NotNull(paymentResponse);
         Assert.Equal(PaymentStatus.Authorized, paymentResponse.Status);
         Assert.Equal(1111, paymentResponse.CardNumberLastFour);
+
+        var savedPayment = paymentRepository.Get(paymentResponse.Id);
+        Assert.NotNull(savedPayment);
+        Assert.Equal(paymentResponse.Id, savedPayment.Id);
+        Assert.Equal(paymentResponse.Status, savedPayment.Status);
     }
 
     [Fact]
@@ -111,7 +119,7 @@ public class PaymentsControllerTests
     public async Task RetrievesAPaymentSuccessfully()
     {
         // Arrange
-        var payment = new PostPaymentResponse
+        var payment = new Payment
         {
             Id = Guid.NewGuid(),
             ExpiryYear = _random.Next(2023, 2030),
@@ -189,7 +197,45 @@ public class PaymentsControllerTests
     }
 
     [Fact]
-    public async Task Returns400IfPaymentValidationFails()
+    public async Task ProcessPayment_WhenBankReturnsRejected_ReturnsServiceUnavailableAndDoesNotStore()
+    {
+        // Arrange
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "1234567812345678",
+            ExpiryMonth = 10,
+            ExpiryYear = 2030,
+            Currency = "GBP",
+            Amount = 100,
+            CVV = "123"
+        };
+
+        var bankSimulatorMock = new Mock<IBankSimulator>();
+        bankSimulatorMock
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .ReturnsAsync(Result.Fail("Rejected"));
+
+        var paymentRepositoryMock = new Mock<IPaymentRepository>();
+
+        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
+        var client = webApplicationFactory.WithWebHostBuilder(builder =>
+                builder.ConfigureServices(services =>
+                {
+                    services.AddSingleton(bankSimulatorMock.Object);
+                    services.AddSingleton(paymentRepositoryMock.Object);
+                }))
+            .CreateClient();
+
+        // Act
+        var response = await client.PostAsJsonAsync("/api/Payments", request);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        paymentRepositoryMock.Verify(x => x.Add(It.IsAny<Payment>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReturnsRejectedStatusIfPaymentValidationFails()
     {
         // Arrange
         var request = new PostPaymentRequest
@@ -207,12 +253,10 @@ public class PaymentsControllerTests
 
         // Act
         var response = await client.PostAsJsonAsync("/api/Payments", request);
+        var paymentResponse = await response.Content.ReadFromJsonAsync<PostPaymentResponse>();
 
         // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var errors = await response.Content.ReadFromJsonAsync<IEnumerable<string>>();
-        Assert.NotEmpty(errors);
-        Assert.All(errors, error => Assert.IsType<string>(error));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(PaymentStatus.Rejected, paymentResponse.Status);
     }
 }
