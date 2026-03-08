@@ -1,18 +1,18 @@
-﻿using PaymentGateway.Api.Models.Responses;
+﻿using PaymentGateway.Api.Models.Domain;
 using PaymentGateway.Api.Repositories.Payment;
 
 namespace PaymentGateway.Api.Services;
 
 public class PaymentsRepository : IPaymentRepository
 {
-    public List<PostPaymentResponse> Payments = new();
+    public List<Payment> Payments = new();
 
-    public void Add(PostPaymentResponse payment)
+    public void Add(Payment payment)
     {
         Payments.Add(payment);
     }
 
-    public PostPaymentResponse? Get(Guid paymentId)
+    public Payment? Get(Guid paymentId)
     {
         return Payments.FirstOrDefault(p => p.Id == paymentId);
     }
