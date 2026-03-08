@@ -201,4 +201,37 @@ public class PaymentServiceTests
         actual.IsFailed.Should().BeTrue();
         actual.Errors.Should().ContainSingle(e => e.Message.Contains("Service Unavailable"));
     }
+
+    [Fact]
+    public async Task ProcessPayment_WhenRequestIsInvalid_ReturnsValidationErrors()
+    {
+        // Arrange
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "1234a", // Invalid card number (short and non-numeric)
+            ExpiryMonth = 13, // Invalid month
+            ExpiryYear = 2020, // Expired year
+            Currency = "AUD", // Invalid currency
+            Amount = -1, // Invalid amount
+            CVV = "1" // Invalid CVV
+        };
+
+        // Act
+        var actual = await _sut.ProcessPaymentAsync(request);
+
+        // Assert
+        actual.IsFailed.Should().BeTrue();
+        actual.Errors.Select(e => e.Message).Should().Contain(new[]
+        {
+            "Card number must be between 14 and 19 characters long",
+            "Card number must only contain numeric characters",
+            "Expiry month must be between 1 and 12",
+            "Expiry year must be in the future",
+            "Currency must be one of the following: USD, EUR, GBP",
+            "Amount must be greater than 0",
+            "CVV must be 3 or 4 characters long"
+        });
+
+        _bankSimulatorMock.Verify(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()), Times.Never);
+    }
 }
