@@ -52,7 +52,7 @@ public class BankSimulator(HttpClient httpClient, ILogger<BankSimulator> logger)
         {
             logger.LogError("Error calling bank simulator: {Exception}", ex);
 
-            return Result.Fail("Error connecting to bank simulator");
+            return Result.Fail("Bank simulator: Service Unavailable");
         }
     }
 }

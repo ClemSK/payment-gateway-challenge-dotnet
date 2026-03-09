@@ -238,11 +238,12 @@ public class PaymentServiceTests
 
         // Assert
         actual.IsSuccess.Should().BeFalse();
-        actual.Value.Status.Should().Be(PaymentStatus.Rejected);
         
         var error = actual.Errors.OfType<PaymentError>().Single();
         error.ErrorType.Should().Be(PaymentErrorType.ServiceUnavailable);
-        error.Message.Should().Be("Payment rejected due to validation failure");
+        error.Message.Should().Be("Validation failed");
+        error.Data.Should().BeAssignableTo<IEnumerable<string>>();
+        ((IEnumerable<string>)error.Data!).Should().NotBeEmpty();
 
         _bankSimulatorMock.Verify(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()), Times.Never);
     }

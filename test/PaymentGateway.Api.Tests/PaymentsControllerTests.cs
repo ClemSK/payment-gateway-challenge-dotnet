@@ -253,10 +253,11 @@ public class PaymentsControllerTests
 
         // Act
         var response = await client.PostAsJsonAsync("/api/Payments", request);
-        var paymentResponse = await response.Content.ReadFromJsonAsync<PostPaymentResponse>();
+        var paymentResponse = await response.Content.ReadFromJsonAsync<IEnumerable<string>>();
 
         // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Equal(PaymentStatus.Rejected, paymentResponse.Status);
+        Assert.NotNull(paymentResponse);
+        Assert.NotEmpty(paymentResponse);
     }
 }

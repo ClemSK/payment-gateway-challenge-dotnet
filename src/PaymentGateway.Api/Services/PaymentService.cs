@@ -26,17 +26,7 @@ public class PaymentService(
 
         if (!validationResult.IsValid)
         {
-            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
-                "Payment rejected due to validation failure", new PostPaymentResponse()
-                {
-                    Id = guidGenerator.NewGuid(),
-                    Status = PaymentStatus.Rejected,
-                    CardNumberLastFour = request.GetCardNumberLastFour(),
-                    ExpiryMonth = request.ExpiryMonth,
-                    ExpiryYear = request.ExpiryYear,
-                    Currency = request.Currency,
-                    Amount = request.Amount
-                }));
+            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable, validationResult.Errors));
         }
 
         var bankResult = await bankSimulator.ProcessPaymentAsync(request.ToBankSimulatorRequest());
