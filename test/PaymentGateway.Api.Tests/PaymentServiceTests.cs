@@ -40,7 +40,9 @@ public class PaymentServiceTests
     {
         // Arrange
         var paymentId = Guid.NewGuid();
-        var expected = new Payment
+        var authorizationCode = Guid.NewGuid();
+
+        var expected = new PaymentResponse()
         {
             Id = paymentId,
             Amount = 10050,
@@ -48,12 +50,22 @@ public class PaymentServiceTests
             CardNumberLastFour = 4321,
             ExpiryMonth = 10,
             ExpiryYear = 2026,
-            Currency = "GBP"
+            Currency = "GBP",
         };
 
         _paymentRepositoryMock
             .Setup(x => x.Get(paymentId))
-            .Returns(expected);
+            .Returns(new Payment
+            {
+                Id = paymentId,
+                Amount = 10050,
+                Status = PaymentStatus.Authorized,
+                CardNumberLastFour = 4321,
+                ExpiryMonth = 10,
+                ExpiryYear = 2026,
+                Currency = "GBP",
+                AuthorizationCode = authorizationCode.ToString()
+            });
 
         // Act
         var actual = _sut.GetPayment(paymentId);
@@ -61,7 +73,7 @@ public class PaymentServiceTests
         // Assert
         actual.Should().NotBeNull();
         actual.IsSuccess.Should().BeTrue();
-        actual.Value.Should().BeOfType<PostPaymentResponse>();
+        actual.Value.Should().BeOfType<PaymentResponse>();
 
         actual.Value.Should().BeEquivalentTo(expected);
 
@@ -100,7 +112,7 @@ public class PaymentServiceTests
             CVV = "123"
         };
 
-        var expected = new PostPaymentResponse()
+        var expected = new PaymentResponse()
         {
             Id = paymentId,
             CardNumberLastFour = 1111,
@@ -148,7 +160,7 @@ public class PaymentServiceTests
             CVV = "123"
         };
 
-        var expected = new PostPaymentResponse()
+        var expected = new PaymentResponse()
         {
             Id = paymentId,
             CardNumberLastFour = 2222,
@@ -218,7 +230,7 @@ public class PaymentServiceTests
             CVV = "1" // Invalid CVV
         };
 
-        var expected = new PostPaymentResponse()
+        var expected = new PaymentResponse()
         {
             Id = paymentId,
             CardNumberLastFour = 0,

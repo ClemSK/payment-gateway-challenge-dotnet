@@ -20,53 +20,69 @@ public class PaymentService(
     IGuidGenerator guidGenerator
 )
 {
-    public async Task<Result<PostPaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request)
+    public async Task<Result<PaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request)
     {
         var validationResult = await new PostPaymentRequestValidator().ValidateAsync(request);
 
         if (!validationResult.IsValid)
         {
-            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
+            logger.LogWarning("Payment validation failed: {Errors}", validationResult.Errors);
+            return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
                 validationResult.Errors));
         }
 
-        var bankResult = await bankSimulator.ProcessPaymentAsync(request.ToBankSimulatorRequest());
+        var correlationId = guidGenerator.NewGuid();
+
+        logger.LogInformation("Payment validation successful: {CorrelationId}", correlationId.ToString());
+
+        var bankResult = await bankSimulator.ProcessPaymentAsync(request.ToBankSimulatorRequest(), correlationId);
 
         if (bankResult.IsFailed)
         {
-            return Result.Fail<PostPaymentResponse>(bankResult.ToPaymentError());
+            logger.LogError("Bank payment processing failed: {Error}", bankResult.ToPaymentError());
+            return Result.Fail<PaymentResponse>(bankResult.ToPaymentError());
         }
 
         var status = bankResult.Value.Authorized ? PaymentStatus.Authorized : PaymentStatus.Declined;
-        return Result.Ok(CreateAndStorePayment(request, status).ToPostPaymentResponse());
+        logger.LogInformation("Payment processed with status: {Status}", status);
+
+        return Result.Ok(CreateAndStorePayment(request, status, correlationId, bankResult.Value.AuthorizationCode)
+            .ToPaymentResponse());
     }
 
-    private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status)
+    private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status, Guid correlationId,
+        string authorizationCode)
     {
         var payment = new Payment
         {
-            Id = guidGenerator.NewGuid(),
+            Id = correlationId,
             Status = status,
             CardNumberLastFour = request.GetCardNumberLastFour(),
             ExpiryMonth = request.ExpiryMonth,
             ExpiryYear = request.ExpiryYear,
             Currency = request.Currency,
-            Amount = request.Amount
+            Amount = request.Amount,
+            AuthorizationCode = string.IsNullOrEmpty(authorizationCode) ? null : authorizationCode
         };
 
+
         paymentRepository.Add(payment);
+        logger.LogInformation("Payment saved with PaymentID: {PaymentId}", payment.Id);
+
         return payment;
     }
 
-    public Result<PostPaymentResponse> GetPayment(Guid paymentId)
+    public Result<PaymentResponse> GetPayment(Guid paymentId)
     {
         var payment = paymentRepository.Get(paymentId);
 
         if (payment == null)
         {
-            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.NotFound, "Payment not found"));
+            logger.LogWarning("Payment not found: {PaymentId}", paymentId.ToString());
+            return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.NotFound, "Payment not found"));
         }
 
-        return Result.Ok(payment.ToPostPaymentResponse());
+        logger.LogInformation("Payment retrieved: {PaymentId}", paymentId.ToString());
+        return Result.Ok(payment.ToPaymentResponse());
     }
 }
