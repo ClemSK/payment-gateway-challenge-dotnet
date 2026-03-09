@@ -238,7 +238,7 @@ public class PaymentServiceTests
 
         // Assert
         actual.IsSuccess.Should().BeFalse();
-        
+
         var error = actual.Errors.OfType<PaymentError>().Single();
         error.ErrorType.Should().Be(PaymentErrorType.ServiceUnavailable);
         error.Message.Should().Be("Validation failed");

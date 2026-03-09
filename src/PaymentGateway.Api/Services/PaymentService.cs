@@ -26,7 +26,8 @@ public class PaymentService(
 
         if (!validationResult.IsValid)
         {
-            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable, validationResult.Errors));
+            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
+                validationResult.Errors));
         }
 
         var bankResult = await bankSimulator.ProcessPaymentAsync(request.ToBankSimulatorRequest());
