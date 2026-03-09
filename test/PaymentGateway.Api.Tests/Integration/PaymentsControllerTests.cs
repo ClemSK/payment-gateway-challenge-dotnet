@@ -41,7 +41,7 @@ public class PaymentsControllerTests
         var bankSimulatorMock = new Mock<IBankSimulator>();
 
         bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Ok(new BankSimulatorResponse
             {
                 Authorized = true, AuthorizationCode = authorizationCode.ToString()
@@ -91,7 +91,7 @@ public class PaymentsControllerTests
         var bankSimulatorMock = new Mock<IBankSimulator>();
 
         bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(
                 Result.Ok(new BankSimulatorResponse { Authorized = false, AuthorizationCode = string.Empty }));
 
@@ -182,7 +182,7 @@ public class PaymentsControllerTests
 
         var bankSimulatorMock = new Mock<IBankSimulator>();
         bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Fail("Bank simulator: Service Unavailable"));
 
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
@@ -216,7 +216,7 @@ public class PaymentsControllerTests
 
         var bankSimulatorMock = new Mock<IBankSimulator>();
         bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Fail("Rejected"));
 
         var paymentRepositoryMock = new Mock<IPaymentRepository>();
