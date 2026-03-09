@@ -50,7 +50,7 @@ public class PaymentServiceTests
             CardNumberLastFour = 4321,
             ExpiryMonth = 10,
             ExpiryYear = 2026,
-            Currency = "GBP",
+            Currency = "GBP"
         };
 
         _paymentRepositoryMock
@@ -127,7 +127,7 @@ public class PaymentServiceTests
             new BankSimulatorResponse { Authorized = true, AuthorizationCode = authorizationCode.ToString() };
 
         _bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Ok(bankResponse));
 
         _guidGeneratorMock
@@ -174,7 +174,7 @@ public class PaymentServiceTests
         var bankResponse = new BankSimulatorResponse { Authorized = false, AuthorizationCode = "" };
 
         _bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Ok(bankResponse));
 
         _guidGeneratorMock
@@ -204,7 +204,7 @@ public class PaymentServiceTests
         };
 
         _bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()))
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Fail("Bank simulator: Service Unavailable"));
 
         // Act
@@ -257,6 +257,7 @@ public class PaymentServiceTests
         error.Data.Should().BeAssignableTo<IEnumerable<string>>();
         ((IEnumerable<string>)error.Data!).Should().NotBeEmpty();
 
-        _bankSimulatorMock.Verify(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>()), Times.Never);
+        _bankSimulatorMock.Verify(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
+            Times.Never);
     }
 }
