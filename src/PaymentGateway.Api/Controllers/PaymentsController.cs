@@ -12,14 +12,14 @@ namespace PaymentGateway.Api.Controllers;
 public class PaymentsController(PaymentService paymentService) : Controller
 {
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<PostPaymentResponse>> GetPaymentAsync(Guid id)
+    public async Task<ActionResult<PaymentResponse>> GetPaymentAsync(Guid id)
     {
         var result = paymentService.GetPayment(id);
         return result.ToActionResult(this);
     }
-    
+
     [HttpPost]
-    public async Task<ActionResult<PostPaymentResponse>> PostPaymentAsync([FromBody] PostPaymentRequest request)
+    public async Task<ActionResult<PaymentResponse>> PostPaymentAsync([FromBody] PostPaymentRequest request)
     {
         var result = await paymentService.ProcessPaymentAsync(request);
         return result.ToActionResult(this);

@@ -20,13 +20,13 @@ public class PaymentService(
     IGuidGenerator guidGenerator
 )
 {
-    public async Task<Result<PostPaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request)
+    public async Task<Result<PaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request)
     {
         var validationResult = await new PostPaymentRequestValidator().ValidateAsync(request);
 
         if (!validationResult.IsValid)
         {
-            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
+            return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
                 validationResult.Errors));
         }
 
@@ -34,14 +34,15 @@ public class PaymentService(
 
         if (bankResult.IsFailed)
         {
-            return Result.Fail<PostPaymentResponse>(bankResult.ToPaymentError());
+            return Result.Fail<PaymentResponse>(bankResult.ToPaymentError());
         }
 
         var status = bankResult.Value.Authorized ? PaymentStatus.Authorized : PaymentStatus.Declined;
-        return Result.Ok(CreateAndStorePayment(request, status).ToPostPaymentResponse());
+        return Result.Ok(CreateAndStorePayment(request, status, bankResult.Value.AuthorizationCode)
+            .ToPaymentResponse());
     }
 
-    private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status)
+    private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status, string authorizationCode)
     {
         var payment = new Payment
         {
@@ -51,22 +52,23 @@ public class PaymentService(
             ExpiryMonth = request.ExpiryMonth,
             ExpiryYear = request.ExpiryYear,
             Currency = request.Currency,
-            Amount = request.Amount
+            Amount = request.Amount,
+            AuthorizationCode = string.IsNullOrEmpty(authorizationCode) ? null : authorizationCode
         };
 
         paymentRepository.Add(payment);
         return payment;
     }
 
-    public Result<PostPaymentResponse> GetPayment(Guid paymentId)
+    public Result<PaymentResponse> GetPayment(Guid paymentId)
     {
         var payment = paymentRepository.Get(paymentId);
 
         if (payment == null)
         {
-            return Result.Fail<PostPaymentResponse>(new PaymentError(PaymentErrorType.NotFound, "Payment not found"));
+            return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.NotFound, "Payment not found"));
         }
 
-        return Result.Ok(payment.ToPostPaymentResponse());
+        return Result.Ok(payment.ToPaymentResponse());
     }
 }

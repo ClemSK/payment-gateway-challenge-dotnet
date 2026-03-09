@@ -5,7 +5,7 @@ namespace PaymentGateway.Api.Common.Mapping;
 
 public static class PaymentMappingExtensions
 {
-    public static PostPaymentResponse ToPostPaymentResponse(this Payment payment) =>
+    public static PaymentResponse ToPaymentResponse(this Payment payment) =>
         new()
         {
             Id = payment.Id,
