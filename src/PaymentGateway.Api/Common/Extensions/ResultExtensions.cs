@@ -20,9 +20,8 @@ public static class ResultExtensions
             return paymentError.ErrorType switch
             {
                 PaymentErrorType.ServiceUnavailable => controller.StatusCode(503,
-                    paymentError.Data ?? paymentError.Message),
+                    paymentError.Data ?? result.Errors.Select(e => e.Message)),
                 PaymentErrorType.NotFound => controller.NotFound(paymentError.Message),
-                PaymentErrorType.ValidationFailed => controller.BadRequest(result.Errors.Select(e => e.Message)),
                 _ => controller.StatusCode(500, "Unexpected error")
             };
         }
