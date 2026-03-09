@@ -9,7 +9,8 @@ namespace PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
 
 public class BankSimulator(HttpClient httpClient, ILogger<BankSimulator> logger) : IBankSimulator
 {
-    public async Task<Result<BankSimulatorResponse>> ProcessPaymentAsync(BankSimulatorRequest request)
+    public async Task<Result<BankSimulatorResponse>> ProcessPaymentAsync(BankSimulatorRequest request,
+        Guid correlationId)
     {
         try
         {
@@ -25,6 +26,7 @@ public class BankSimulator(HttpClient httpClient, ILogger<BankSimulator> logger)
                     return Result.Fail("Failed to deserialize bank simulator response");
                 }
 
+                logger.LogInformation("Bank simulator returned success");
                 return Result.Ok(result);
             }
 
@@ -50,7 +52,7 @@ public class BankSimulator(HttpClient httpClient, ILogger<BankSimulator> logger)
         }
         catch (Exception ex)
         {
-            logger.LogError("Error calling bank simulator: {Exception}", ex);
+            logger.LogError(ex, "Error calling bank simulator: {CorrelationId}", correlationId);
 
             return Result.Fail("Bank simulator: Service Unavailable");
         }

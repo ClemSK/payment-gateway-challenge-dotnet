@@ -7,5 +7,5 @@ namespace PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
 
 public interface IBankSimulator
 {
-    Task<Result<BankSimulatorResponse>> ProcessPaymentAsync(BankSimulatorRequest request);
+    Task<Result<BankSimulatorResponse>> ProcessPaymentAsync(BankSimulatorRequest request, Guid correlationId);
 }

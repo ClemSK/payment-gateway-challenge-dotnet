@@ -26,27 +26,36 @@ public class PaymentService(
 
         if (!validationResult.IsValid)
         {
+            logger.LogWarning("Payment validation failed: {Errors}", validationResult.Errors);
             return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
                 validationResult.Errors));
         }
 
-        var bankResult = await bankSimulator.ProcessPaymentAsync(request.ToBankSimulatorRequest());
+        var correlationId = guidGenerator.NewGuid();
+
+        logger.LogInformation("Payment validation successful: {CorrelationId}", correlationId.ToString());
+
+        var bankResult = await bankSimulator.ProcessPaymentAsync(request.ToBankSimulatorRequest(), correlationId);
 
         if (bankResult.IsFailed)
         {
+            logger.LogError("Bank payment processing failed: {Error}", bankResult.ToPaymentError());
             return Result.Fail<PaymentResponse>(bankResult.ToPaymentError());
         }
 
         var status = bankResult.Value.Authorized ? PaymentStatus.Authorized : PaymentStatus.Declined;
-        return Result.Ok(CreateAndStorePayment(request, status, bankResult.Value.AuthorizationCode)
+        logger.LogInformation("Payment processed with status: {Status}", status);
+
+        return Result.Ok(CreateAndStorePayment(request, status, correlationId, bankResult.Value.AuthorizationCode)
             .ToPaymentResponse());
     }
 
-    private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status, string authorizationCode)
+    private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status, Guid correlationId,
+        string authorizationCode)
     {
         var payment = new Payment
         {
-            Id = guidGenerator.NewGuid(),
+            Id = correlationId,
             Status = status,
             CardNumberLastFour = request.GetCardNumberLastFour(),
             ExpiryMonth = request.ExpiryMonth,
@@ -56,7 +65,10 @@ public class PaymentService(
             AuthorizationCode = string.IsNullOrEmpty(authorizationCode) ? null : authorizationCode
         };
 
+
         paymentRepository.Add(payment);
+        logger.LogInformation("Payment saved with PaymentID: {PaymentId}", payment.Id);
+
         return payment;
     }
 
@@ -66,9 +78,11 @@ public class PaymentService(
 
         if (payment == null)
         {
+            logger.LogWarning("Payment not found: {PaymentId}", paymentId.ToString());
             return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.NotFound, "Payment not found"));
         }
 
+        logger.LogInformation("Payment retrieved: {PaymentId}", paymentId.ToString());
         return Result.Ok(payment.ToPaymentResponse());
     }
 }
