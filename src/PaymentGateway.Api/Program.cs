@@ -1,5 +1,4 @@
 using PaymentGateway.Api.Common.GuidGenerator;
-using PaymentGateway.Api.Common.Swagger;
 using PaymentGateway.Api.Infrastructure.Clients.BankSimulator;
 using PaymentGateway.Api.Repositories.Payment;
 using PaymentGateway.Api.Services;
@@ -11,10 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.OperationFilter<IdempotencyKeyOperationFilter>();
-});
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<IPaymentRepository, PaymentsRepository>();
 builder.Services.AddSingleton<IGuidGenerator, GuidGenerator>();

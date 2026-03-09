@@ -20,8 +20,20 @@ public class PaymentService(
     IGuidGenerator guidGenerator
 )
 {
-    public async Task<Result<PaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request)
+    public async Task<Result<PaymentResponse>> ProcessPaymentAsync(PostPaymentRequest request, string? idempotencyKey)
     {
+        if (!string.IsNullOrEmpty(idempotencyKey))
+        {
+            var existing = paymentRepository.GetByIdempotencyKey(idempotencyKey);
+            if (existing is not null)
+            {
+                logger.LogWarning("Payment with idempotency key already exists: {IdempotencyKey}", idempotencyKey);
+
+                return Result.Fail(new PaymentError(PaymentErrorType.Conflict,
+                    $"A payment with this idempotency key already exists: {idempotencyKey}"));
+            }
+        }
+
         var validationResult = await new PostPaymentRequestValidator().ValidateAsync(request);
 
         if (!validationResult.IsValid)
@@ -46,12 +58,13 @@ public class PaymentService(
         var status = bankResult.Value.Authorized ? PaymentStatus.Authorized : PaymentStatus.Declined;
         logger.LogInformation("Payment processed with status: {Status}", status);
 
-        return Result.Ok(CreateAndStorePayment(request, status, correlationId, bankResult.Value.AuthorizationCode)
+        return Result.Ok(CreateAndStorePayment(request, status, correlationId, bankResult.Value.AuthorizationCode,
+                idempotencyKey)
             .ToPaymentResponse());
     }
 
     private Payment CreateAndStorePayment(PostPaymentRequest request, PaymentStatus status, Guid correlationId,
-        string authorizationCode)
+        string authorizationCode, string? idempotencyKey)
     {
         var payment = new Payment
         {
@@ -62,7 +75,8 @@ public class PaymentService(
             ExpiryYear = request.ExpiryYear,
             Currency = request.Currency,
             Amount = request.Amount,
-            AuthorizationCode = string.IsNullOrEmpty(authorizationCode) ? null : authorizationCode
+            AuthorizationCode = string.IsNullOrEmpty(authorizationCode) ? null : authorizationCode,
+            IdempotencyKey = idempotencyKey
         };
 
 
