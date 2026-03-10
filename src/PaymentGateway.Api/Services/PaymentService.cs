@@ -39,7 +39,7 @@ public class PaymentService(
         if (!validationResult.IsValid)
         {
             logger.LogWarning("Payment validation failed: {Errors}", validationResult.Errors);
-            return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.ServiceUnavailable,
+            return Result.Fail<PaymentResponse>(new PaymentError(PaymentErrorType.ValidationFailed,
                 validationResult.Errors));
         }
 
