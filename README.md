@@ -1,4 +1,4 @@
-# Payment Gateway Challenge — .NET
+# Payment Gateway Challenge - .NET
 
 A payment gateway API built in .NET 8 as part of the Checkout.com engineering assessment. The gateway allows merchants to process card payments and retrieve payment details, integrating with a simulated acquiring bank.
 
@@ -57,7 +57,7 @@ curl -X 'POST' \
 
 The solution uses the Repository pattern to separate payment storage concerns from business logic while keeping the project simple. An in-memory repository fulfils the storage requirements of this exercise without introducing unnecessary infrastructure complexity.
 
-iDesign, DDD and more complex patterns (N-tier, iDesign, CQRS) were considered but ruled out — the brief explicitly asks to avoid over-engineering and focus on the functional requirements.
+iDesign, DDD and more complex patterns (N-tier, iDesign, CQRS) were considered but ruled out as the brief explicitly asks to avoid over-engineering and focus on the functional requirements.
 
 ---
 ## Project Structure
@@ -68,7 +68,7 @@ The project follows a layered architecture with clear separation of concerns. Ea
 - **Controllers**: Exposes the Payment Gateway's HTTP endpoints, handling request routing and delegating processing to the service layer.
 - **Enums**: Centralised enumeration types (`PaymentStatus`, `PaymentErrorType`) shared across the application.
 - **Infrastructure**: Encapsulates all external and internal data access concerns.
-    - **Clients**: Adapters for third-party integrations — in this case, the Bank Simulator client.
+    - **Clients**: Adapters for third-party integrations, in this case, the Bank Simulator client.
     - **Repositories**: Internal data stores.
 - **Models**: Strongly-typed data structures scoped by their role in the request lifecycle.
     - **Domain**: Core business entities (`Payment`, `PaymentError`) that represent the application's internal model.
@@ -127,77 +127,77 @@ The project follows a layered architecture with clear separation of concerns. Ea
 ---
 ## Extra Mile Features
 
-- **Idempotency** — an optional `Idempotency-Key` header prevents duplicate payments from being processed. If a request is received with a key that matches an existing payment, a `409 Conflict` is returned immediately without calling the bank. Keys expire after 24 hours, matching the behaviour of Checkout.com's own API.
-- **Authorization code storage** — the `authorization_code` returned by the bank on successful payments is persisted alongside the payment record. This is surfaced on the `GET /payments/{id}` endpoint, giving merchants the reference they need for reconciliation and dispute resolution.
-- **Correlation IDs** — each payment is assigned a correlation ID at creation time, included in all structured log entries to allow end-to-end tracing of a payment through the system.
+- **Idempotency**: an optional `Idempotency-Key` header prevents duplicate payments from being processed. If a request is received with a key that matches an existing payment, a `409 Conflict` is returned immediately without calling the bank. Keys expire after 24 hours, matching the behaviour of Checkout.com's own API.
+- **Authorization code storage**: the `authorization_code` returned by the bank on successful payments is persisted alongside the payment record. This is surfaced on the `GET /payments/{id}` endpoint, giving merchants the reference they need for reconciliation and dispute resolution.
+- **Correlation IDs**: each payment is assigned a correlation ID at creation time, included in all structured log entries to allow end-to-end tracing of a payment through the system.
 ---
 ## Out of Scope / Future Enhancements
 
 These were excluded to stay within the scope of the brief but would be required in a production system:
 
-- **Authentication / Authorisation** — signed JWT tokens validated independently per service, enabling a stateless and scalable auth model.
-- **Persistent storage** — a relational DB (Postgres, SQL Server) or NoSQL store (MongoDB) to ensure payments survive restarts.
+- **Authentication / Authorisation**: signed JWT tokens validated independently per service, enabling a stateless and scalable auth model.
+- **Persistent storage**: a relational DB (Postgres, SQL Server) or NoSQL store (MongoDB) to ensure payments survive restarts.
 - **Input hardening**
-	- Rate limiting — prevent a merchant (or attacker) hammering the endpoint with thousands of requests. .NET has `AspNetCoreRateLimit` for this.
-	- Request size limits — reject payloads over a certain size before they even call the controller.
+	- Rate limiting: prevent a merchant (or attacker) hammering the endpoint with thousands of requests. .NET has `AspNetCoreRateLimit` for this.
+	- Request size limits: reject payloads over a certain size before they even call the controller.
 - **Security**
-	- Card number should be tokenised — store a token that maps to the real card number held by a PCI-compliant vault, never the raw number.
-	- Scoped permissions — a merchant can only retrieve their own payments, not another merchant's.
+	- Card number should be tokenised: store a token that maps to the real card number held by a PCI-compliant vault, never the raw number.
+	- Scoped permissions: a merchant can only retrieve their own payments, not another merchant's.
 - **Observability**
-	- Alerting on unusual patterns — spike in declined payments from one merchant could indicate card testing fraud.
-	- Audit log — immutable record of every payment attempt, who made it, and what happened.
+	- Alerting on unusual patterns: spike in declined payments from one merchant could indicate card testing fraud.
+	- Audit log: immutable record of every payment attempt, who made it, and what happened.
 	- More robust observability with tools like OpenTelemetry for structured logs, distributed traces, and metrics, replacing basic console logging.
-- **Resilience / retries** — exponential backoff for transient bank failures (e.g. `503` responses) rather than immediately surfacing errors to the caller.
-- **Multiple acquiring banks** — the gateway currently supports a single bank; production systems route to multiple providers.
-- **Merchant / payer identification** — associating payments with a specific merchant or customer context.
+- **Resilience / retries**: exponential backoff for transient bank failures (e.g. `503` responses) rather than immediately surfacing errors to the caller.
+- **Multiple acquiring banks**: the gateway currently supports a single bank; production systems route to multiple providers.
+- **Merchant / payer identification**: associating payments with a specific merchant or customer context.
 
 ---
 ## Assumptions
 
-- Expiry year must be a 4-digit value; 2-digit years are rejected.
+- Expiry year must be a 4-figure integer (e.g. `2030`). Shortened values (e.g. `30`) are rejected.
 
 ---
 ## HTTP status code scenarios
 
-Success - HTTP 200
+Success - HTTP 200
 - Retrieving an existing payment successfully.
 - Successfully processing a payment request (this includes both authorized and declined statuses from the bank).
 
-Service Unavailable - HTTP 503
+Service Unavailable - HTTP 503
 - Validation errors in the payment request (e.g., invalid card number, expiry date, currency, amount, or CVV).
 - Bank simulator service is unavailable or a connection error occurs.
 - Payment is rejected by the bank simulator (contains "Rejected").
 
-Not Found - HTTP 404
+Not Found - HTTP 404
 - Attempting to retrieve a payment using an ID that does not exist in the system.
 
-Conflict - HTTP 409
+Conflict - HTTP 409
 - Attempting to process a payment using an idempotency key that has already been used for a previous request.
 
-Internal Server Error - HTTP 500
+Internal Server Error - HTTP 500
 - Unexpected system errors.
 
 ---
 ## Error Handling
 
-FluentResults is used throughout the service layer instead of throwing exceptions. This keeps error handling explicit and consistent — both validation failures and business logic errors are surfaced in the same format, making API responses predictable for clients.
+FluentResults is used throughout the service layer instead of throwing exceptions. This keeps error handling explicit and consistent. Both validation failures and business logic errors are surfaced in the same format, making API responses predictable for clients.
 
 ---
 ## Logging
 
 Structured logging is used throughout the service layer to provide consistent, queryable log output without exposing sensitive data.
 
-- **Correlation IDs** — each payment is assigned a correlation ID at creation, which is included in all related log entries. This makes it straightforward to trace a payment end-to-end across both logs and the in-memory store.
-- **Sensitive data** — sensitive data is not logged. IDs and statuses are referenced where appropriate
-- **Log levels** — `Information` for normal payment flows, `Warning` for duplicate idempotency key attempts, and `Error` for bank simulator failures.
+- **Correlation IDs**: each payment is assigned a correlation ID at creation, which is included in all related log entries. This makes it straightforward to trace a payment end-to-end across both logs and the in-memory store.
+- **Sensitive data**: sensitive data is not logged. IDs and statuses are referenced where appropriate
+- **Log levels**: `Information` for normal payment flows, `Warning` for duplicate idempotency key attempts, and `Error` for bank simulator failures.
 
 ---
 ## Testing
 
 The project has two levels of test coverage:
 
-- **Integration tests** on the controller — verifying end-to-end request/response behaviour including routing, status codes, and response shapes for authorised, declined, and rejected scenarios.
-- **Unit tests** on the service and validation layers — covering individual validation rules and payment processing logic in isolation.
+- **Integration tests** on the controller: verifying end-to-end request/response behaviour including routing, status codes, and response shapes for authorised, declined, and rejected scenarios.
+- **Unit tests** on the service and validation layers: covering individual validation rules and payment processing logic in isolation.
 
 ---
 ## Dependencies
