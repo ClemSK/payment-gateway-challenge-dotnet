@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 
+using FluentAssertions;
+
 using FluentResults;
 
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -24,7 +26,7 @@ public class PaymentsControllerTests
     private readonly Random _random = new();
 
     [Fact]
-    public async Task ProcessesAnAuthorisedPaymentSuccessfully()
+    public async Task ProcessPayment_WhenBankReturnsAuthorized_ReturnsAuthorizedResponse()
     {
         // Arrange
         var authorizationCode = Guid.NewGuid();
@@ -63,19 +65,19 @@ public class PaymentsControllerTests
         var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
 
         // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotNull(paymentResponse);
-        Assert.Equal(PaymentStatus.Authorized, paymentResponse.Status);
-        Assert.Equal(1111, paymentResponse.CardNumberLastFour);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        paymentResponse.Should().NotBeNull();
+        paymentResponse.Status.Should().Be(PaymentStatus.Authorized);
+        paymentResponse.CardNumberLastFour.Should().Be(1111);
 
         var savedPayment = paymentRepository.Get(paymentResponse.Id);
-        Assert.NotNull(savedPayment);
-        Assert.Equal(paymentResponse.Id, savedPayment.Id);
-        Assert.Equal(paymentResponse.Status, savedPayment.Status);
+        savedPayment.Should().NotBeNull();
+        savedPayment.Id.Should().Be(paymentResponse.Id);
+        savedPayment.Status.Should().Be(paymentResponse.Status);
     }
 
     [Fact]
-    public async Task ProcessesADeclinedPaymentSuccessfully()
+    public async Task ProcessPayment_WhenBankReturnsDeclined_ReturnsDeclinedResponse()
     {
         // Arrange
         var request = new PostPaymentRequest
@@ -92,11 +94,12 @@ public class PaymentsControllerTests
 
         bankSimulatorMock
             .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
-            .ReturnsAsync(
-                Result.Ok(new BankSimulatorResponse { Authorized = false, AuthorizationCode = string.Empty }));
+            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
+            {
+                Authorized = false, AuthorizationCode = string.Empty
+            }));
 
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
-
         var client = webApplicationFactory.WithWebHostBuilder(builder =>
                 builder.ConfigureServices(services =>
                 {
@@ -109,14 +112,14 @@ public class PaymentsControllerTests
         var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
 
         // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotNull(paymentResponse);
-        Assert.Equal(PaymentStatus.Declined, paymentResponse.Status);
-        Assert.Equal(2222, paymentResponse.CardNumberLastFour);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        paymentResponse.Should().NotBeNull();
+        paymentResponse!.Status.Should().Be(PaymentStatus.Declined);
+        paymentResponse.CardNumberLastFour.Should().Be(2222);
     }
 
     [Fact]
-    public async Task RetrievesAPaymentSuccessfully()
+    public async Task GetPayment_WhenPaymentExists_ReturnsPayment()
     {
         // Arrange
         var paymentId = Guid.NewGuid();
@@ -148,12 +151,12 @@ public class PaymentsControllerTests
         var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
 
         // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotNull(paymentResponse);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        paymentResponse.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task Returns404IfPaymentNotFound()
+    public async Task GetPayment_WhenPaymentDoesNotExist_Returns404()
     {
         // Arrange
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
@@ -163,11 +166,11 @@ public class PaymentsControllerTests
         var response = await client.GetAsync($"/api/Payments/{Guid.NewGuid()}");
 
         // Assert
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task Returns503IfBankSimulatorIsUnavailable()
+    public async Task ProcessPayment_WhenBankSimulatorIsUnavailable_Returns503()
     {
         // Arrange
         var request = new PostPaymentRequest
@@ -197,7 +200,7 @@ public class PaymentsControllerTests
         var response = await client.PostAsJsonAsync("/api/Payments", request);
 
         // Assert
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
     }
 
     [Fact]
@@ -234,12 +237,12 @@ public class PaymentsControllerTests
         var response = await client.PostAsJsonAsync("/api/Payments", request);
 
         // Assert
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         paymentRepositoryMock.Verify(x => x.Add(It.IsAny<Payment>()), Times.Never);
     }
 
     [Fact]
-    public async Task ReturnsRejectedStatusIfPaymentValidationFails()
+    public async Task ProcessPayment_WhenRequestIsInvalid_ReturnsRejectedResponse()
     {
         // Arrange
         var request = new PostPaymentRequest
@@ -260,13 +263,12 @@ public class PaymentsControllerTests
         var paymentResponse = await response.Content.ReadFromJsonAsync<IEnumerable<string>>();
 
         // Assert
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.NotNull(paymentResponse);
-        Assert.NotEmpty(paymentResponse);
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        paymentResponse.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task ProcessPayment_WhenSameIdempotencyKeySentTwice_ReturnsCachedResponseAndBankCalledOnce()
+    public async Task ProcessPayment_WhenSameIdempotencyKeySentTwice_ReturnsConflictOnSecondRequest()
     {
         // Arrange
         var idempotencyKey = Guid.NewGuid().ToString();
@@ -317,14 +319,14 @@ public class PaymentsControllerTests
         var errorResponse = await secondResponse.Content.ReadAsStringAsync();
 
         // Assert — first request succeeds
-        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
-        Assert.NotNull(firstPayment);
-        Assert.Equal(PaymentStatus.Authorized, firstPayment.Status);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        firstPayment.Should().NotBeNull();
+        firstPayment!.Status.Should().Be(PaymentStatus.Authorized);
 
         // Second request conflicts
-        Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
-        Assert.NotNull(errorResponse);
-        Assert.Contains("A payment with this idempotency key already exists", errorResponse);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        errorResponse.Should().NotBeNullOrEmpty();
+        errorResponse.Should().Contain("A payment with this idempotency key already exists");
 
         bankSimulatorMock.Verify(
             x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
