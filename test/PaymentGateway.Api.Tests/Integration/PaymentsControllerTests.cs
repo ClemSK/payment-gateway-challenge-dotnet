@@ -26,7 +26,7 @@ public class PaymentsControllerTests
     private readonly Random _random = new();
 
     [Fact]
-    public async Task ProcessesAnAuthorisedPaymentSuccessfully()
+    public async Task ProcessPayment_WhenBankReturnsAuthorized_ReturnsAuthorizedResponse()
     {
         // Arrange
         var authorizationCode = Guid.NewGuid();
@@ -77,7 +77,7 @@ public class PaymentsControllerTests
     }
 
     [Fact]
-    public async Task ProcessesADeclinedPaymentSuccessfully()
+    public async Task ProcessPayment_WhenBankReturnsDeclined_ReturnsDeclinedResponse()
     {
         // Arrange
         var request = new PostPaymentRequest
@@ -119,7 +119,7 @@ public class PaymentsControllerTests
     }
 
     [Fact]
-    public async Task RetrievesAPaymentSuccessfully()
+    public async Task GetPayment_WhenPaymentExists_ReturnsPayment()
     {
         // Arrange
         var paymentId = Guid.NewGuid();
@@ -156,7 +156,7 @@ public class PaymentsControllerTests
     }
 
     [Fact]
-    public async Task Returns404IfPaymentNotFound()
+    public async Task GetPayment_WhenPaymentDoesNotExist_Returns404()
     {
         // Arrange
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
@@ -170,7 +170,7 @@ public class PaymentsControllerTests
     }
 
     [Fact]
-    public async Task Returns503IfBankSimulatorIsUnavailable()
+    public async Task ProcessPayment_WhenBankSimulatorIsUnavailable_Returns503()
     {
         // Arrange
         var request = new PostPaymentRequest
@@ -242,7 +242,7 @@ public class PaymentsControllerTests
     }
 
     [Fact]
-    public async Task ReturnsRejectedStatusIfPaymentValidationFails()
+    public async Task ProcessPayment_WhenRequestIsInvalid_ReturnsRejectedResponse()
     {
         // Arrange
         var request = new PostPaymentRequest
