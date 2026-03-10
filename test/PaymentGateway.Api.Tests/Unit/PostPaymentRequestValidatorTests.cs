@@ -3,7 +3,7 @@ using FluentAssertions;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Validation;
 
-namespace PaymentGateway.Api.Tests;
+namespace PaymentGateway.Api.Tests.Unit;
 
 public class PostPaymentRequestValidatorTests
 {

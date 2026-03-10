@@ -18,124 +18,19 @@ using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Repositories.Payment;
 using PaymentGateway.Api.Services;
+using PaymentGateway.Api.Tests.Helpers;
 
-namespace PaymentGateway.Api.Tests;
+namespace PaymentGateway.Api.Tests.Integration;
 
 public class PaymentsControllerTests
 {
-    private readonly Random _random = new();
-
-    [Fact]
-    public async Task ProcessPayment_WhenBankReturnsAuthorized_ReturnsAuthorizedResponse()
-    {
-        // Arrange
-        var authorizationCode = Guid.NewGuid();
-        var request = new PostPaymentRequest
-        {
-            CardNumber = "1234567812341111",
-            ExpiryMonth = 10,
-            ExpiryYear = 2030,
-            Currency = "GBP",
-            Amount = 100,
-            CVV = "123"
-        };
-
-        var bankSimulatorMock = new Mock<IBankSimulator>();
-
-        bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
-            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
-            {
-                Authorized = true, AuthorizationCode = authorizationCode.ToString()
-            }));
-
-        var paymentRepository = new PaymentsRepository();
-        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
-
-        var client = webApplicationFactory.WithWebHostBuilder(builder =>
-                builder.ConfigureServices(services =>
-                {
-                    services.AddSingleton(bankSimulatorMock.Object);
-                    services.AddSingleton<IPaymentRepository>(paymentRepository);
-                }))
-            .CreateClient();
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/Payments", request);
-        var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        paymentResponse.Should().NotBeNull();
-        paymentResponse.Status.Should().Be(PaymentStatus.Authorized);
-        paymentResponse.CardNumberLastFour.Should().Be(1111);
-
-        var savedPayment = paymentRepository.Get(paymentResponse.Id);
-        savedPayment.Should().NotBeNull();
-        savedPayment.Id.Should().Be(paymentResponse.Id);
-        savedPayment.Status.Should().Be(paymentResponse.Status);
-    }
-
-    [Fact]
-    public async Task ProcessPayment_WhenBankReturnsDeclined_ReturnsDeclinedResponse()
-    {
-        // Arrange
-        var request = new PostPaymentRequest
-        {
-            CardNumber = "1234567812342222",
-            ExpiryMonth = 10,
-            ExpiryYear = 2030,
-            Currency = "GBP",
-            Amount = 100,
-            CVV = "123"
-        };
-
-        var bankSimulatorMock = new Mock<IBankSimulator>();
-
-        bankSimulatorMock
-            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
-            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
-            {
-                Authorized = false, AuthorizationCode = string.Empty
-            }));
-
-        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
-        var client = webApplicationFactory.WithWebHostBuilder(builder =>
-                builder.ConfigureServices(services =>
-                {
-                    services.AddSingleton(bankSimulatorMock.Object);
-                }))
-            .CreateClient();
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/Payments", request);
-        var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        paymentResponse.Should().NotBeNull();
-        paymentResponse!.Status.Should().Be(PaymentStatus.Declined);
-        paymentResponse.CardNumberLastFour.Should().Be(2222);
-    }
+    #region GetPayment
 
     [Fact]
     public async Task GetPayment_WhenPaymentExists_ReturnsPayment()
     {
         // Arrange
-        var paymentId = Guid.NewGuid();
-        var authorizationCode = Guid.NewGuid();
-
-        var payment = new Payment
-        {
-            Id = paymentId,
-            ExpiryYear = _random.Next(2023, 2030),
-            ExpiryMonth = _random.Next(1, 12),
-            Amount = _random.Next(1, 10000),
-            CardNumberLastFour = _random.Next(1111, 9999),
-            Currency = "GBP",
-            Status = PaymentStatus.Authorized,
-            AuthorizationCode = authorizationCode.ToString()
-        };
+        var payment = PaymentTestDataBuilder.BuildPayment(PaymentStatus.Authorized);
 
         var paymentRepository = new PaymentsRepository();
         paymentRepository.Add(payment);
@@ -169,24 +64,65 @@ public class PaymentsControllerTests
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    #endregion
+
+    #region ProcessPayment
+
     [Fact]
-    public async Task ProcessPayment_WhenBankSimulatorIsUnavailable_Returns503()
+    public async Task ProcessPayment_WhenBankReturnsAuthorized_ReturnsAuthorizedResponse()
     {
         // Arrange
-        var request = new PostPaymentRequest
-        {
-            CardNumber = "1234567812345678",
-            ExpiryMonth = 10,
-            ExpiryYear = 2030,
-            Currency = "GBP",
-            Amount = 100,
-            CVV = "123"
-        };
+        var authorizationCode = Guid.NewGuid().ToString();
+        var request = PaymentTestDataBuilder.BuildAuthorizedRequest();
 
         var bankSimulatorMock = new Mock<IBankSimulator>();
         bankSimulatorMock
             .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
-            .ReturnsAsync(Result.Fail("Bank simulator: Service Unavailable"));
+            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
+            {
+                Authorized = true, AuthorizationCode = authorizationCode
+            }));
+
+        var paymentRepository = new PaymentsRepository();
+        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
+
+        var client = webApplicationFactory.WithWebHostBuilder(builder =>
+                builder.ConfigureServices(services =>
+                {
+                    services.AddSingleton(bankSimulatorMock.Object);
+                    services.AddSingleton<IPaymentRepository>(paymentRepository);
+                }))
+            .CreateClient();
+
+        // Act
+        var response = await client.PostAsJsonAsync("/api/Payments", request);
+        var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        paymentResponse.Should().NotBeNull();
+        paymentResponse!.Status.Should().Be(PaymentStatus.Authorized);
+        paymentResponse.CardNumberLastFour.Should().Be(int.Parse(request.CardNumber[^4..]));
+
+        var savedPayment = paymentRepository.Get(paymentResponse.Id);
+        savedPayment.Should().NotBeNull();
+        savedPayment!.Id.Should().Be(paymentResponse.Id);
+        savedPayment.Status.Should().Be(paymentResponse.Status);
+    }
+
+    [Fact]
+    public async Task ProcessPayment_WhenBankReturnsDeclined_ReturnsDeclinedResponse()
+    {
+        // Arrange
+        var request = PaymentTestDataBuilder.BuildDeclinedRequest();
+
+        var bankSimulatorMock = new Mock<IBankSimulator>();
+        bankSimulatorMock
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
+            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
+            {
+                Authorized = false, AuthorizationCode = string.Empty
+            }));
 
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
         var client = webApplicationFactory.WithWebHostBuilder(builder =>
@@ -198,29 +134,25 @@ public class PaymentsControllerTests
 
         // Act
         var response = await client.PostAsJsonAsync("/api/Payments", request);
+        var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        paymentResponse.Should().NotBeNull();
+        paymentResponse!.Status.Should().Be(PaymentStatus.Declined);
+        paymentResponse.CardNumberLastFour.Should().Be(int.Parse(request.CardNumber[^4..]));
     }
 
     [Fact]
-    public async Task ProcessPayment_WhenBankReturnsRejected_ReturnsServiceUnavailableAndDoesNotStore()
+    public async Task ProcessPayment_WhenBankSimulatorIsUnavailable_Returns503AndDoesNotStore()
     {
         // Arrange
-        var request = new PostPaymentRequest
-        {
-            CardNumber = "1234567812345678",
-            ExpiryMonth = 10,
-            ExpiryYear = 2030,
-            Currency = "GBP",
-            Amount = 100,
-            CVV = "123"
-        };
+        var request = PaymentTestDataBuilder.BuildUnavailableRequest();
 
         var bankSimulatorMock = new Mock<IBankSimulator>();
         bankSimulatorMock
             .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
-            .ReturnsAsync(Result.Fail("Rejected"));
+            .ReturnsAsync(Result.Fail("Bank simulator: Service Unavailable"));
 
         var paymentRepositoryMock = new Mock<IPaymentRepository>();
 
@@ -245,15 +177,7 @@ public class PaymentsControllerTests
     public async Task ProcessPayment_WhenRequestIsInvalid_ReturnsRejectedResponse()
     {
         // Arrange
-        var request = new PostPaymentRequest
-        {
-            CardNumber = "123", // Too short
-            ExpiryMonth = 13, // Invalid month
-            ExpiryYear = 2020, // In the past
-            Currency = "JPY", // Not supported
-            Amount = -1, // Not positive
-            CVV = "12" // Too short
-        };
+        var request = PaymentTestDataBuilder.BuildInvalidRequest();
 
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
         var client = webApplicationFactory.CreateClient();
@@ -272,24 +196,14 @@ public class PaymentsControllerTests
     {
         // Arrange
         var idempotencyKey = Guid.NewGuid().ToString();
-        var authorizationCode = Guid.NewGuid().ToString();
-
-        var request = new PostPaymentRequest
-        {
-            CardNumber = "1234567812341111",
-            ExpiryMonth = 10,
-            ExpiryYear = 2030,
-            Currency = "GBP",
-            Amount = 100,
-            CVV = "123"
-        };
+        var request = PaymentTestDataBuilder.BuildAuthorizedRequest();
 
         var bankSimulatorMock = new Mock<IBankSimulator>();
         bankSimulatorMock
             .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
             .ReturnsAsync(Result.Ok(new BankSimulatorResponse
             {
-                Authorized = true, AuthorizationCode = authorizationCode
+                Authorized = true, AuthorizationCode = Guid.NewGuid().ToString()
             }));
 
         var paymentRepository = new PaymentsRepository();
@@ -332,4 +246,6 @@ public class PaymentsControllerTests
             x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
             Times.Once);
     }
+
+    #endregion
 }
