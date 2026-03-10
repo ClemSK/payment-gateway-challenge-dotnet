@@ -23,6 +23,7 @@ public static class ResultExtensions
                     paymentError.Data ?? result.Errors.Select(e => e.Message)),
                 PaymentErrorType.NotFound => controller.NotFound(paymentError.Message),
                 PaymentErrorType.Conflict => controller.Conflict(paymentError.Message),
+                PaymentErrorType.ValidationFailed => controller.BadRequest(paymentError.Data ?? result.Errors.Select(e => e.Message)),
                 _ => controller.StatusCode(500, "Unexpected error")
             };
         }
