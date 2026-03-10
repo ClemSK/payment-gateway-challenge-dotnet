@@ -57,7 +57,7 @@ curl -X 'POST' \
 
 The solution uses the Repository pattern to separate payment storage concerns from business logic while keeping the project simple. An in-memory repository fulfils the storage requirements of this exercise without introducing unnecessary infrastructure complexity.
 
-iDesign, DDD and more complex patterns (N-tier, iDesign, CQRS) were considered but ruled out as the brief explicitly asks to avoid over-engineering and focus on the functional requirements.
+iDesign, Domain-Driven Design and N-tier architectures were considered but ruled out as the brief explicitly asks to avoid over-engineering and focus on the functional requirements.
 
 ---
 ## Project Structure
