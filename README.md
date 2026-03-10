@@ -153,11 +153,7 @@ These were excluded to stay within the scope of the brief but would be required 
 ---
 ## Assumptions
 
-- Currency is validated against exactly three ISO 4217 codes: `GBP`, `USD`, `EUR`.
 - Expiry year must be a 4-digit value; 2-digit years are rejected.
-- The expiry month and year combination must be in the future at the time of the request.
-- Amount is represented in the minor currency unit (e.g. `1050` = £10.50).
-- No authentication is required for this exercise — all merchant context is out of scope.
 
 ---
 ## HTTP status code scenarios
@@ -191,7 +187,7 @@ FluentResults is used throughout the service layer instead of throwing exception
 Structured logging is used throughout the service layer to provide consistent, queryable log output without exposing sensitive data.
 
 - **Correlation IDs** — each payment is assigned a correlation ID at creation, which is included in all related log entries. This makes it straightforward to trace a payment end-to-end across both logs and the in-memory store.
-- **Sensitive data** — card numbers are never logged. Only the last four digits are referenced where needed, and CVVs are omitted entirely.
+- **Sensitive data** — sensitive data is not logged. IDs and statuses are referenced where appropriate
 - **Log levels** — `Information` for normal payment flows, `Warning` for duplicate idempotency key attempts, and `Error` for bank simulator failures.
 
 ---
