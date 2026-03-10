@@ -192,7 +192,6 @@ Internal Server Error - HTTP 500
 
 Service Unavailable - HTTP 503
 - Bank simulator service is unavailable or a connection error occurs.
-- Payment is rejected by the bank simulator (contains "Rejected").
 
 ---
 ## Error Handling
