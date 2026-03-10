@@ -100,6 +100,7 @@ public class PaymentServiceTests
     {
         // Arrange
         var paymentId = Guid.NewGuid();
+        var idempotencyKey = Guid.NewGuid();
         var authorizationCode = Guid.NewGuid();
 
         var request = new PostPaymentRequest
@@ -135,7 +136,7 @@ public class PaymentServiceTests
             .Returns(paymentId);
 
         // Act
-        var actual = await _sut.ProcessPaymentAsync(request);
+        var actual = await _sut.ProcessPaymentAsync(request, idempotencyKey.ToString());
 
         // Assert
         actual.IsSuccess.Should().BeTrue();
@@ -149,6 +150,7 @@ public class PaymentServiceTests
     {
         // Arrange
         var paymentId = Guid.NewGuid();
+        var idempotencyKey = Guid.NewGuid();
 
         var request = new PostPaymentRequest
         {
@@ -182,7 +184,7 @@ public class PaymentServiceTests
             .Returns(paymentId);
 
         // Act
-        var actual = await _sut.ProcessPaymentAsync(request);
+        var actual = await _sut.ProcessPaymentAsync(request, idempotencyKey.ToString());
 
         // Assert
         actual.IsSuccess.Should().BeTrue();
@@ -193,6 +195,8 @@ public class PaymentServiceTests
     public async Task ProcessPayment_WhenBankSimulatorIsUnavailable_ReturnsServiceUnavailableResult()
     {
         // Arrange
+        var idempotencyKey = Guid.NewGuid();
+
         var request = new PostPaymentRequest
         {
             CardNumber = "1234567812340000",
@@ -208,7 +212,7 @@ public class PaymentServiceTests
             .ReturnsAsync(Result.Fail("Bank simulator: Service Unavailable"));
 
         // Act
-        var actual = await _sut.ProcessPaymentAsync(request);
+        var actual = await _sut.ProcessPaymentAsync(request, idempotencyKey.ToString());
 
         // Assert
         actual.IsFailed.Should().BeTrue();
@@ -220,6 +224,8 @@ public class PaymentServiceTests
     {
         // Arrange
         var paymentId = Guid.NewGuid();
+        var idempotencyKey = Guid.NewGuid();
+
         var request = new PostPaymentRequest
         {
             CardNumber = "1234a", // Invalid card number (short and non-numeric)
@@ -230,23 +236,12 @@ public class PaymentServiceTests
             CVV = "1" // Invalid CVV
         };
 
-        var expected = new PaymentResponse()
-        {
-            Id = paymentId,
-            CardNumberLastFour = 0,
-            ExpiryMonth = 13,
-            ExpiryYear = 2020,
-            Currency = "AUD",
-            Amount = -1,
-            Status = PaymentStatus.Rejected
-        };
-
         _guidGeneratorMock
             .Setup(x => x.NewGuid())
             .Returns(paymentId);
 
         // Act
-        var actual = await _sut.ProcessPaymentAsync(request);
+        var actual = await _sut.ProcessPaymentAsync(request, idempotencyKey.ToString());
 
         // Assert
         actual.IsSuccess.Should().BeFalse();
@@ -259,5 +254,153 @@ public class PaymentServiceTests
 
         _bankSimulatorMock.Verify(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessPayment_WhenIdempotencyKeyAlreadyExists_ReturnsCachedResponse()
+    {
+        // Arrange
+        var paymentId = Guid.NewGuid();
+        var idempotencyKey = Guid.NewGuid().ToString();
+        var authorizationCode = Guid.NewGuid().ToString();
+
+        var existingPayment = new Payment
+        {
+            Id = paymentId,
+            CardNumberLastFour = 1111,
+            ExpiryMonth = 10,
+            ExpiryYear = 2030,
+            Currency = "GBP",
+            Amount = 100,
+            Status = PaymentStatus.Authorized,
+            IdempotencyKey = idempotencyKey,
+            AuthorizationCode = authorizationCode
+        };
+
+        _paymentRepositoryMock
+            .Setup(x => x.GetByIdempotencyKey(idempotencyKey))
+            .Returns(existingPayment);
+
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "1234567812341111",
+            ExpiryMonth = 10,
+            ExpiryYear = 2030,
+            Currency = "GBP",
+            Amount = 100,
+            CVV = "123"
+        };
+
+        // Act
+        var actual = await _sut.ProcessPaymentAsync(request, idempotencyKey);
+
+        // Assert
+        actual.IsFailed.Should().BeTrue();
+        actual.Errors.OfType<PaymentError>()
+            .Should().ContainSingle(e => e.ErrorType == PaymentErrorType.Conflict);
+
+        _bankSimulatorMock.Verify(
+            x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
+            Times.Never);
+
+        _paymentRepositoryMock.Verify(
+            x => x.Add(It.IsAny<Payment>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessPayment_WhenSameCardDifferentIdempotencyKey_CreatesTwoPayments()
+    {
+        // Arrange
+        var firstPaymentId = Guid.NewGuid();
+        var secondPaymentId = Guid.NewGuid();
+        var firstKey = Guid.NewGuid().ToString();
+        var secondKey = Guid.NewGuid().ToString();
+        var authorizationCode = Guid.NewGuid().ToString();
+
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "1234567812341111",
+            ExpiryMonth = 10,
+            ExpiryYear = 2030,
+            Currency = "GBP",
+            Amount = 100,
+            CVV = "123"
+        };
+
+        var bankResponse = new BankSimulatorResponse { Authorized = true, AuthorizationCode = authorizationCode };
+
+        _bankSimulatorMock
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
+            .ReturnsAsync(Result.Ok(bankResponse));
+
+        _paymentRepositoryMock
+            .Setup(x => x.GetByIdempotencyKey(It.IsAny<string>()))
+            .Returns((Payment?)null);
+
+        _guidGeneratorMock
+            .SetupSequence(x => x.NewGuid())
+            .Returns(firstPaymentId)
+            .Returns(secondPaymentId);
+
+        // Act
+        var firstResult = await _sut.ProcessPaymentAsync(request, firstKey);
+        var secondResult = await _sut.ProcessPaymentAsync(request, secondKey);
+
+        // Assert
+        firstResult.IsSuccess.Should().BeTrue();
+        secondResult.IsSuccess.Should().BeTrue();
+        firstResult.Value.Id.Should().NotBe(secondResult.Value.Id);
+
+        _bankSimulatorMock.Verify(
+            x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
+            Times.Exactly(2));
+
+        _paymentRepositoryMock.Verify(
+            x => x.Add(It.IsAny<Payment>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ProcessPayment_WhenNoIdempotencyKey_ProcessesNormally()
+    {
+        // Arrange
+        var paymentId = Guid.NewGuid();
+        var authorizationCode = Guid.NewGuid().ToString();
+
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "1234567812341111",
+            ExpiryMonth = 10,
+            ExpiryYear = 2030,
+            Currency = "GBP",
+            Amount = 100,
+            CVV = "123"
+        };
+
+        _bankSimulatorMock
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
+            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
+            {
+                Authorized = true, AuthorizationCode = authorizationCode
+            }));
+
+        _guidGeneratorMock
+            .Setup(x => x.NewGuid())
+            .Returns(paymentId);
+
+        // Act
+        var actual = await _sut.ProcessPaymentAsync(request, null);
+
+        // Assert
+        actual.IsSuccess.Should().BeTrue();
+
+        _bankSimulatorMock.Verify(
+            x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
+            Times.Once);
+
+        _paymentRepositoryMock.Verify(
+            x => x.Add(It.IsAny<Payment>()),
+            Times.Once);
     }
 }
