@@ -19,9 +19,12 @@ public class PaymentsController(PaymentService paymentService) : Controller
     }
 
     [HttpPost]
-    public async Task<ActionResult<PaymentResponse>> PostPaymentAsync([FromBody] PostPaymentRequest request)
+    public async Task<ActionResult<PaymentResponse>> PostPaymentAsync(
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        [FromBody] PostPaymentRequest request)
     {
-        var result = await paymentService.ProcessPaymentAsync(request);
+        var result = await paymentService.ProcessPaymentAsync(request, idempotencyKey);
+
         return result.ToActionResult(this);
     }
 }

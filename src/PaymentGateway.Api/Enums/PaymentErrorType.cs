@@ -4,5 +4,6 @@ public enum PaymentErrorType
 {
     ValidationFailed,
     ServiceUnavailable,
-    NotFound
+    NotFound,
+    Conflict
 }

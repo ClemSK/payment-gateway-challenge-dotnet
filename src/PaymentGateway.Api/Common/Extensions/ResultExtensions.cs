@@ -22,6 +22,7 @@ public static class ResultExtensions
                 PaymentErrorType.ServiceUnavailable => controller.StatusCode(503,
                     paymentError.Data ?? result.Errors.Select(e => e.Message)),
                 PaymentErrorType.NotFound => controller.NotFound(paymentError.Message),
+                PaymentErrorType.Conflict => controller.Conflict(paymentError.Message),
                 _ => controller.StatusCode(500, "Unexpected error")
             };
         }

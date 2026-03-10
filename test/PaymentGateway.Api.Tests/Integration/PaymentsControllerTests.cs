@@ -264,4 +264,70 @@ public class PaymentsControllerTests
         Assert.NotNull(paymentResponse);
         Assert.NotEmpty(paymentResponse);
     }
+
+    [Fact]
+    public async Task ProcessPayment_WhenSameIdempotencyKeySentTwice_ReturnsCachedResponseAndBankCalledOnce()
+    {
+        // Arrange
+        var idempotencyKey = Guid.NewGuid().ToString();
+        var authorizationCode = Guid.NewGuid().ToString();
+
+        var request = new PostPaymentRequest
+        {
+            CardNumber = "1234567812341111",
+            ExpiryMonth = 10,
+            ExpiryYear = 2030,
+            Currency = "GBP",
+            Amount = 100,
+            CVV = "123"
+        };
+
+        var bankSimulatorMock = new Mock<IBankSimulator>();
+        bankSimulatorMock
+            .Setup(x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()))
+            .ReturnsAsync(Result.Ok(new BankSimulatorResponse
+            {
+                Authorized = true, AuthorizationCode = authorizationCode
+            }));
+
+        var paymentRepository = new PaymentsRepository();
+        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
+
+        var client = webApplicationFactory.WithWebHostBuilder(builder =>
+                builder.ConfigureServices(services =>
+                {
+                    services.AddSingleton(bankSimulatorMock.Object);
+                    services.AddSingleton<IPaymentRepository>(paymentRepository);
+                }))
+            .CreateClient();
+
+        var requestMessage1 = new HttpRequestMessage(HttpMethod.Post, "/api/Payments");
+        requestMessage1.Headers.Add("Idempotency-Key", idempotencyKey);
+        requestMessage1.Content = JsonContent.Create(request);
+
+        var requestMessage2 = new HttpRequestMessage(HttpMethod.Post, "/api/Payments");
+        requestMessage2.Headers.Add("Idempotency-Key", idempotencyKey);
+        requestMessage2.Content = JsonContent.Create(request);
+
+        // Act
+        var firstResponse = await client.SendAsync(requestMessage1);
+        var secondResponse = await client.SendAsync(requestMessage2);
+
+        var firstPayment = await firstResponse.Content.ReadFromJsonAsync<PaymentResponse>();
+        var errorResponse = await secondResponse.Content.ReadAsStringAsync();
+
+        // Assert — first request succeeds
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.NotNull(firstPayment);
+        Assert.Equal(PaymentStatus.Authorized, firstPayment.Status);
+
+        // Second request conflicts
+        Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
+        Assert.NotNull(errorResponse);
+        Assert.Contains("A payment with this idempotency key already exists", errorResponse);
+
+        bankSimulatorMock.Verify(
+            x => x.ProcessPaymentAsync(It.IsAny<BankSimulatorRequest>(), It.IsAny<Guid>()),
+            Times.Once);
+    }
 }

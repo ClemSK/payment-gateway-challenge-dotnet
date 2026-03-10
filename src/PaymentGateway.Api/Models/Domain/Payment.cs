@@ -12,4 +12,5 @@ public class Payment
     public required string Currency { get; set; }
     public required int Amount { get; set; }
     public string? AuthorizationCode { get; set; }
+    public string? IdempotencyKey { get; set; }
 }
