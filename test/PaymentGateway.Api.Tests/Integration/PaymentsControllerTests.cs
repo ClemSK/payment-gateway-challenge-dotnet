@@ -187,7 +187,7 @@ public class PaymentsControllerTests
         var paymentResponse = await response.Content.ReadFromJsonAsync<IEnumerable<string>>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         paymentResponse.Should().NotBeNullOrEmpty();
     }
 
