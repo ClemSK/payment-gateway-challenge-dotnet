@@ -178,10 +178,8 @@ Success - HTTP 200
 - Retrieving an existing payment successfully.
 - Successfully processing a payment request (this includes both authorized and declined statuses from the bank).
 
-Service Unavailable - HTTP 503
+Bad Request - HTTP 400
 - Validation errors in the payment request (e.g., invalid card number, expiry date, currency, amount, or CVV).
-- Bank simulator service is unavailable or a connection error occurs.
-- Payment is rejected by the bank simulator (contains "Rejected").
 
 Not Found - HTTP 404
 - Attempting to retrieve a payment using an ID that does not exist in the system.
@@ -191,6 +189,9 @@ Conflict - HTTP 409
 
 Internal Server Error - HTTP 500
 - Unexpected system errors.
+
+Service Unavailable - HTTP 503
+- Bank simulator service is unavailable or a connection error occurs.
 
 ---
 ## Error Handling
