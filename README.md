@@ -2,6 +2,7 @@
 
 A payment gateway API built in .NET 8 as part of the Checkout.com engineering assessment. The gateway allows merchants to process card payments and retrieve payment details, integrating with a simulated acquiring bank.
 
+> The full challenge README is in the Checkout-challenge-README.md file of the project
 ---
 ## Running the project
 
