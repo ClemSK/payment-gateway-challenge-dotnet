@@ -30,7 +30,7 @@ docker-compose up
 
 Update the last card number to see the change in statuses.
 
-1: Authorised
+1: Authorized
 2: Declined
 0: Service Unavailable
 
@@ -57,7 +57,7 @@ curl -X 'POST' \
 
 The solution uses the Repository pattern to separate payment storage concerns from business logic while keeping the project simple. An in-memory repository fulfils the storage requirements of this exercise without introducing unnecessary infrastructure complexity.
 
-iDesign, DDD and more complex patterns (N-tier, iDesign, CQRS) were considered but ruled out as the brief explicitly asks to avoid over-engineering and focus on the functional requirements.
+iDesign, Domain-Driven Design and N-tier architectures were considered but ruled out as the brief explicitly asks to avoid over-engineering and focus on the functional requirements.
 
 ---
 ## Project Structure
@@ -81,91 +81,48 @@ The project follows a layered architecture with clear separation of concerns. Ea
 // Payment Gateway
 
 .
-
 ├── Common
-
 │ ├── Extensions
-
 │ │ ├── BankResultExtension.cs
-
 │ │ ├── PostPaymentRequestExtension.cs
-
 │ │ └── ResultExtensions.cs
-
 │ ├── GuidGenerator
-
 │ │ └── IGuidGenerator.cs
-
 │ └── Mapping
-
 │ └── PaymentMappingExtensions.cs
-
 ├── Controllers
-
 │ └── PaymentsController.cs
-
 ├── Enums
-
 │ ├── PaymentErrorType.cs
-
 │ └── PaymentStatus.cs
-
 ├── Infrastructure
-
 │ ├── Clients
-
 │ │ └── BankSimulator
-
 │ │ ├── BankSimulator.cs
-
 │ │ └── IBankSimulator.cs
-
 │ └── Repositories
-
 │ └── Payment
-
 │ ├── IPaymentRepository.cs
-
 │ └── PaymentsRepository.cs
-
 ├── Models
-
 │ ├── Domain
-
 │ │ ├── Payment.cs
-
 │ │ └── PaymentError.cs
-
 │ ├── Requests
-
 │ │ ├── BankSimulatorRequest.cs
-
 │ │ └── PostPaymentRequest.cs
-
 │ └── Responses
-
 │ ├── BankSimulatorResponse.cs
-
 │ └── PaymentResponse.cs
-
 ├── Properties
-
 │ └── launchSettings.json
-
 ├── Services
-
 │ └── PaymentService.cs
-
 ├── Validation
-
 │ └── PostPaymentRequestValidator.cs
-
 ├── appsettings.Development.json
-
 ├── appsettings.json
-
 ├── PaymentGateway.Api.csproj
-
 └── Program.cs
 
 // Tests
@@ -186,8 +143,8 @@ The project follows a layered architecture with clear separation of concerns. Ea
 ## Extra Mile Features
 
 - **Idempotency**: an optional `Idempotency-Key` header prevents duplicate payments from being processed. If a request is received with a key that matches an existing payment, a `409 Conflict` is returned immediately without calling the bank. Keys expire after 24 hours, matching the behaviour of Checkout.com's own API.
-- **Authorization code storage**: the `authorization_code` returned by the bank on successful payments is persisted alongside the payment record. This is surfaced on the `GET /payments/{id}` endpoint, giving merchants the reference they need for reconciliation and dispute resolution.
-- **Correlation IDs**: each payment is assigned a correlation ID at creation time, included in all structured log entries to allow end-to-end tracing of a payment through the system.
+- **Authorization code storage**: the `authorization_code` returned by the bank on successful payments is persisted alongside the payment record. This could be used as a means of reconciliation and dispute resolution by banks and merchants.
+- **Correlation IDs**: each valid payment is assigned a `CorrelationID` when being processed by the `PaymentService`. It is included in all related log entries and stored with the `CorrelationId` as the Id for a payment. This makes it straightforward to trace a payment end-to-end across both logs and the in-memory store.
 ---
 ## Out of Scope / Future Enhancements
 
@@ -238,16 +195,16 @@ Internal Server Error - HTTP 500
 ---
 ## Error Handling
 
-FluentResults is used throughout the service layer instead of throwing exceptions. This keeps error handling explicit and consistent. Both validation failures and business logic errors are surfaced in the same format, making API responses predictable for clients.
+FluentResults is used to keep error handling explicit and consistent. Both validation failures and business logic errors are surfaced in the same format, making API responses predictable for clients.
 
 ---
 ## Logging
 
-Structured logging is used throughout the service layer to provide consistent, queryable log output without exposing sensitive data.
+Structured logging is used to provide consistent, queryable log output without exposing sensitive data.
 
-- **Correlation IDs**: each payment is assigned a correlation ID at creation, which is included in all related log entries. This makes it straightforward to trace a payment end-to-end across both logs and the in-memory store.
-- **Sensitive data**: sensitive data is not logged. IDs and statuses are referenced where appropriate
-- **Log levels**: `Information` for normal payment flows, `Warning` for duplicate idempotency key attempts, and `Error` for bank simulator failures.
+- **Correlation IDs**: each valid payment is assigned a correlation ID, which is included in all related log entries, making it straightforward to trace a payment end-to-end.
+- **Sensitive data**: sensitive data is not logged. IDs and statuses are referenced where appropriate.
+- **Log levels**: `Information` for normal payment flows, `Warning` for duplicate idempotency key attempts and validation, and `Error` for bank simulator failures.
 
 ---
 ## Testing
