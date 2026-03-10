@@ -82,44 +82,44 @@ The project follows a layered architecture with clear separation of concerns. Ea
 
 .
 ├── Common
-│ ├── Extensions
-│ │ ├── BankResultExtension.cs
-│ │ ├── PostPaymentRequestExtension.cs
-│ │ └── ResultExtensions.cs
-│ ├── GuidGenerator
-│ │ └── IGuidGenerator.cs
-│ └── Mapping
-│ └── PaymentMappingExtensions.cs
+│   ├── Extensions
+│   │   ├── BankResultExtension.cs
+│   │   ├── PostPaymentRequestExtension.cs
+│   │   └── ResultExtensions.cs
+│   ├── GuidGenerator
+│   │   └── IGuidGenerator.cs
+│   └── Mapping
+│       └── PaymentMappingExtensions.cs
 ├── Controllers
-│ └── PaymentsController.cs
+│   └── PaymentsController.cs
 ├── Enums
-│ ├── PaymentErrorType.cs
-│ └── PaymentStatus.cs
+│   ├── PaymentErrorType.cs
+│   └── PaymentStatus.cs
 ├── Infrastructure
-│ ├── Clients
-│ │ └── BankSimulator
-│ │ ├── BankSimulator.cs
-│ │ └── IBankSimulator.cs
-│ └── Repositories
-│ └── Payment
-│ ├── IPaymentRepository.cs
-│ └── PaymentsRepository.cs
+│   ├── Clients
+│   │   └── BankSimulator
+│   │       ├── BankSimulator.cs
+│   │       └── IBankSimulator.cs
+│   └── Repositories
+│       └── Payment
+│           ├── IPaymentRepository.cs
+│           └── PaymentsRepository.cs
 ├── Models
-│ ├── Domain
-│ │ ├── Payment.cs
-│ │ └── PaymentError.cs
-│ ├── Requests
-│ │ ├── BankSimulatorRequest.cs
-│ │ └── PostPaymentRequest.cs
-│ └── Responses
-│ ├── BankSimulatorResponse.cs
-│ └── PaymentResponse.cs
+│   ├── Domain
+│   │   ├── Payment.cs
+│   │   └── PaymentError.cs
+│   ├── Requests
+│   │   ├── BankSimulatorRequest.cs
+│   │   └── PostPaymentRequest.cs
+│   └── Responses
+│       ├── BankSimulatorResponse.cs
+│       └── PaymentResponse.cs
 ├── Properties
-│ └── launchSettings.json
+│   └── launchSettings.json
 ├── Services
-│ └── PaymentService.cs
+│   └── PaymentService.cs
 ├── Validation
-│ └── PostPaymentRequestValidator.cs
+│   └── PostPaymentRequestValidator.cs
 ├── appsettings.Development.json
 ├── appsettings.json
 ├── PaymentGateway.Api.csproj
